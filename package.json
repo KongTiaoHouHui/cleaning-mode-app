@@ -1,0 +1,28 @@
+{
+  "name": "cleaning-mode-app",
+  "version": "1.0.0",
+  "description": "电脑清洁模式软件",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "build:mac": "electron-builder --mac",
+    "build:win": "electron-builder --win"
+  },
+  "author": "",
+  "license": "ISC",
+  "build": {
+    "appId": "com.example.cleaningmode",
+    "productName": "CleaningMode",
+    "mac": {
+      "target": "dmg",
+      "category": "public.app-category.utilities"
+    },
+    "win": {
+      "target": "nsis"
+    }
+  },
+  "devDependencies": {
+    "electron": "^42.3.3",
+    "electron-builder": "^26.8.1"
+  }
+}

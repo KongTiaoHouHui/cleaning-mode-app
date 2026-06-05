@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>清洁模式中...</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #000000;
+            color: #ffffff;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            font-family: 'Inter', sans-serif;
+            user-select: none;
+            overflow: hidden;
+            cursor: none;
+        }
+
+        .hud-container {
+            opacity: 0;
+            transition: opacity 0.4s ease;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            transform: scale(0.95);
+        }
+
+        .hud-container.visible {
+            opacity: 1;
+            transform: scale(1);
+            transition: all 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        .progress-ring {
+            position: relative;
+            width: 120px;
+            height: 120px;
+            margin-bottom: 24px;
+        }
+
+        .progress-ring circle {
+            fill: transparent;
+            stroke-width: 6;
+            stroke-linecap: round;
+        }
+
+        .progress-ring-bg {
+            stroke: rgba(255, 255, 255, 0.1);
+        }
+
+        .progress-ring-fg {
+            stroke: #3b82f6;
+            stroke-dasharray: 339.292; /* 2 * pi * r (r=54) */
+            stroke-dashoffset: 339.292;
+            transition: stroke 0.3s ease;
+        }
+
+        .progress-ring-fg.success {
+            stroke: #10b981; /* green */
+        }
+
+        .icon-lock {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 32px;
+            height: 32px;
+            fill: #94a3b8;
+            transition: fill 0.3s ease, opacity 0.2s ease;
+            opacity: 1;
+        }
+
+        .icon-lock.hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .countdown-number {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 36px;
+            font-weight: 700;
+            color: #3b82f6;
+            opacity: 0;
+            transition: opacity 0.2s ease, color 0.3s ease;
+            pointer-events: none;
+        }
+
+        .countdown-number.visible {
+            opacity: 1;
+        }
+
+        #message {
+            font-size: 20px;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+            color: #f8fafc;
+        }
+
+        #sub-message {
+            font-size: 14px;
+            color: #64748b;
+            margin-top: 8px;
+        }
+    </style>
+</head>
+<body>
+    <div class="hud-container" id="hud">
+        <div class="progress-ring">
+            <svg width="120" height="120" viewBox="0 0 120 120">
+                <circle class="progress-ring-bg" cx="60" cy="60" r="54"></circle>
+                <circle class="progress-ring-fg" id="progress-fg" cx="60" cy="60" r="54" transform="rotate(-90 60 60)"></circle>
+            </svg>
+            <svg class="icon-lock" id="lock-icon" viewBox="0 0 24 24">
+                <path d="M18 8H17V6C17 3.24 14.76 1 12 1C9.24 1 7 3.24 7 6V8H6C4.9 8 4 8.9 4 10V20C4 21.1 4.9 22 6 22H18C19.1 22 20 21.1 20 20V10C20 8.9 19.1 8 18 8ZM9 6C9 4.34 10.34 3 12 3C13.66 3 15 4.34 15 6V8H9V6ZM18 20H6V10H18V20ZM12 17C13.1 17 14 16.1 14 15C14 13.9 13.1 13 12 13C10.9 13 10 13.9 10 15C10 16.1 10.9 17 12 17Z"/>
+            </svg>
+            <div id="countdown-number" class="countdown-number"></div>
+        </div>
+        <div id="message">清洁模式已开启</div>
+        <div id="sub-message">长按任意键退出</div>
+    </div>
+
+    <script>
+        let duration = 3000;
+        let isPressed = false;
+        let pressStartTime = 0;
+        let animationFrameId = null;
+        
+        window.electronAPI.onSetDuration((value) => {
+            duration = value * 1000;
+        });
+
+        const hud = document.getElementById('hud');
+        const progressFg = document.getElementById('progress-fg');
+        const lockIcon = document.getElementById('lock-icon');
+        const countdownNumber = document.getElementById('countdown-number');
+        const msgEl = document.getElementById('message');
+        const subMsgEl = document.getElementById('sub-message');
+
+        const CIRCUMFERENCE = 2 * Math.PI * 54;
+        
+        let hideTimeout;
+        
+        function showHUD() {
+            hud.classList.add('visible');
+            clearTimeout(hideTimeout);
+            hideTimeout = setTimeout(() => {
+                if (!isPressed) {
+                    hud.classList.remove('visible');
+                }
+            }, 2500);
+        }
+
+        window.addEventListener('mousemove', showHUD);
+
+        function updateProgress() {
+            if (!isPressed) return;
+            
+            const elapsed = Date.now() - pressStartTime;
+            let progress = Math.min(elapsed / duration, 1);
+            
+            // Easing for smoother feel
+            const offset = CIRCUMFERENCE - (progress * CIRCUMFERENCE);
+            progressFg.style.strokeDashoffset = offset;
+
+            if (progress >= 1) {
+                countdownNumber.innerText = "0.0";
+                progressFg.classList.add('success');
+                countdownNumber.style.color = '#10b981';
+                msgEl.innerText = '已解锁';
+                subMsgEl.innerText = '正在退出清洁模式...';
+                window.electronAPI.exitCleaning();
+            } else {
+                countdownNumber.innerText = ((duration - elapsed) / 1000).toFixed(1);
+                animationFrameId = requestAnimationFrame(updateProgress);
+            }
+        }
+
+        window.addEventListener('keydown', (e) => {
+            e.preventDefault();
+            if (e.repeat) return;
+            
+            if (!isPressed) {
+                isPressed = true;
+                pressStartTime = Date.now();
+                
+                showHUD();
+                msgEl.innerText = '正在退出...';
+                subMsgEl.innerText = '请继续按住按键';
+                progressFg.classList.remove('success');
+                
+                lockIcon.classList.add('hidden');
+                countdownNumber.classList.add('visible');
+                countdownNumber.style.color = '#3b82f6';
+                countdownNumber.innerText = (duration / 1000).toFixed(1);
+                progressFg.style.transition = 'stroke 0.3s ease'; // Remove CSS delay to perfectly sync with JS
+                
+                if (animationFrameId) cancelAnimationFrame(animationFrameId);
+                animationFrameId = requestAnimationFrame(updateProgress);
+            }
+        });
+
+        window.addEventListener('keyup', (e) => {
+            e.preventDefault();
+            isPressed = false;
+            if (animationFrameId) cancelAnimationFrame(animationFrameId);
+            
+            // Reset progress smoothly
+            progressFg.style.transition = 'stroke-dashoffset 0.5s cubic-bezier(0.16, 1, 0.3, 1), stroke 0.3s ease';
+            progressFg.style.strokeDashoffset = CIRCUMFERENCE;
+            
+            lockIcon.classList.remove('hidden');
+            countdownNumber.classList.remove('visible');
+            lockIcon.style.fill = '#94a3b8';
+            
+            msgEl.innerText = '清洁模式已开启';
+            subMsgEl.innerText = '长按任意键退出';
+            
+            showHUD(); // Will hide after 2.5s
+        });
+        
+        window.addEventListener('mousedown', (e) => { e.preventDefault(); showHUD(); });
+        window.addEventListener('contextmenu', (e) => e.preventDefault());
+    </script>
+</body>
+</html>
