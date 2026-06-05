@@ -205,29 +205,28 @@
     <script>
         const startBtn = document.getElementById('start-btn');
         const durationInput = document.getElementById('duration');
-        let isStarting = false;
 
         startBtn.addEventListener('click', (e) => {
             e.preventDefault();
-            if (isStarting) return;
-            isStarting = true;
             startBtn.blur(); // 核心修复：失去焦点，防止长按回车/空格退出时立即再次触发
 
             let duration = parseInt(durationInput.value, 10);
             if (isNaN(duration) || duration < 1) {
                 duration = 3;
             }
+            
             // Add a brief animation before starting
+            document.body.style.transition = 'opacity 0.2s ease';
             document.body.style.opacity = '0';
-            document.body.style.transition = 'opacity 0.3s ease';
+            
             setTimeout(() => {
                 window.electronAPI.startCleaning(duration);
-                // restore for next time with a slight delay
-                setTimeout(() => {
-                    document.body.style.opacity = '1';
-                    isStarting = false;
-                }, 1000);
-            }, 300);
+            }, 200);
+        });
+
+        // 当从清洁模式退回来时，重置界面的透明度
+        window.addEventListener('focus', () => {
+            document.body.style.opacity = '1';
         });
     </script>
 </body>
