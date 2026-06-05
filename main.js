@@ -1,5 +1,6 @@
-const { app, BrowserWindow, ipcMain, globalShortcut } = require('electron');
+const { app, BrowserWindow, ipcMain, globalShortcut, shell } = require('electron');
 const path = require('path');
+const { autoUpdater } = require('electron-updater');
 
 let settingsWindow;
 let cleaningWindow;
@@ -61,6 +62,54 @@ function createCleaningWindow(duration) {
 
 app.whenReady().then(() => {
   createSettingsWindow();
+
+  // --- Auto Updater Logic ---
+  autoUpdater.autoDownload = false; // Disable auto download
+
+  // Only check for updates after a short delay so the window is fully loaded
+  setTimeout(() => {
+    autoUpdater.checkForUpdatesAndNotify().catch(err => console.log('Update check failed', err));
+  }, 1500);
+
+  autoUpdater.on('update-available', (info) => {
+    if (settingsWindow && !settingsWindow.isDestroyed()) {
+      settingsWindow.webContents.send('updater-status', {
+        status: 'available',
+        version: info.version,
+        platform: process.platform
+      });
+    }
+  });
+
+  autoUpdater.on('download-progress', (progressObj) => {
+    if (settingsWindow && !settingsWindow.isDestroyed()) {
+      settingsWindow.webContents.send('updater-progress', progressObj.percent);
+    }
+  });
+
+  autoUpdater.on('update-downloaded', () => {
+    if (settingsWindow && !settingsWindow.isDestroyed()) {
+      settingsWindow.webContents.send('updater-status', {
+        status: 'downloaded',
+        platform: process.platform
+      });
+    }
+  });
+
+  ipcMain.on('start-download-update', () => {
+    if (process.platform === 'win32') {
+      autoUpdater.downloadUpdate();
+    }
+  });
+
+  ipcMain.on('quit-and-install-update', () => {
+    autoUpdater.quitAndInstall();
+  });
+
+  ipcMain.on('open-github-releases', () => {
+    shell.openExternal('https://github.com/KongTiaoHouHui/cleaning-mode-app/releases/latest');
+  });
+  // --------------------------
 
   ipcMain.on('start-cleaning', (event, duration) => {
     createCleaningWindow(duration);

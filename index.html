@@ -179,6 +179,33 @@
             -webkit-appearance: none; 
             margin: 0; 
         }
+
+        .update-banner {
+            margin-top: 20px;
+            padding: 12px;
+            background: rgba(15, 23, 42, 0.4);
+            border: 1px solid rgba(59, 130, 246, 0.2);
+            border-radius: 12px;
+            font-size: 13px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            text-align: left;
+        }
+
+        .update-text {
+            color: var(--text-muted);
+        }
+
+        .update-action {
+            cursor: pointer;
+            color: var(--primary);
+            font-weight: 600;
+        }
+
+        .update-action:hover {
+            color: var(--primary-hover);
+        }
     </style>
 </head>
 <body>
@@ -200,11 +227,24 @@
         </div>
         
         <button id="start-btn">开启清洁模式</button>
+
+        <div class="update-banner" id="update-banner" style="display: none;">
+            <div class="update-text" id="update-text">正在检查更新...</div>
+            <div class="update-action" id="update-action"></div>
+        </div>
     </div>
 
     <script>
         const startBtn = document.getElementById('start-btn');
         const durationInput = document.getElementById('duration');
+
+        // 支持按回车键快捷启动
+        durationInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                startBtn.click();
+            }
+        });
 
         startBtn.addEventListener('click', (e) => {
             e.preventDefault();
@@ -227,6 +267,42 @@
         // 当从清洁模式退回来时，重置界面的透明度
         window.addEventListener('focus', () => {
             document.body.style.opacity = '1';
+        });
+
+        // Updater UI Logic
+        const updateBanner = document.getElementById('update-banner');
+        const updateText = document.getElementById('update-text');
+        const updateAction = document.getElementById('update-action');
+
+        window.electronAPI.onUpdaterStatus((info) => {
+            updateBanner.style.display = 'flex';
+            
+            if (info.status === 'available') {
+                updateText.innerText = `发现新版本 ${info.version}`;
+                
+                if (info.platform === 'darwin') {
+                    // Mac doesn't support auto-update without signature
+                    updateAction.innerText = "去网页下载";
+                    updateAction.onclick = () => window.electronAPI.openGithubReleases();
+                } else if (info.platform === 'win32') {
+                    // Windows can auto-update
+                    updateAction.innerText = "自动升级";
+                    updateAction.onclick = () => {
+                        updateAction.style.display = 'none';
+                        updateText.innerText = "准备下载...";
+                        window.electronAPI.startDownloadUpdate();
+                    };
+                }
+            } else if (info.status === 'downloaded') {
+                updateText.innerText = "新版本已下载完毕";
+                updateAction.style.display = 'block';
+                updateAction.innerText = "重启安装";
+                updateAction.onclick = () => window.electronAPI.quitAndInstallUpdate();
+            }
+        });
+
+        window.electronAPI.onUpdaterProgress((percent) => {
+            updateText.innerText = `正在下载... ${Math.round(percent)}%`;
         });
     </script>
 </body>
